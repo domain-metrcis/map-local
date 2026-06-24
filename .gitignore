@@ -1,0 +1,29 @@
+# Build / deploy artifacts
+.serverless/
+.build_tag
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Downloaded / generated
+downloaded_files/
+*.log
+
+# Local secrets
+.env
+.env.*
+proxies.txt
+/tmp/proxies.txt
+
+# K8s (internal)
+k8s/
+
+# Large test outputs
+results_500.json
+results_500.summary.json
+
+# Vendored browser binary (populated by tools/setup_vendor.sh, one-time setup —
+# never commit, too large)
+vendor/ungoogled-chromium/
+vendor/ungoogled-chromium.tar.xz

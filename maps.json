@@ -1,0 +1,25 @@
+{
+  "url": "https://www.google.com/maps/search/${domain}?hl=en",
+  "variables": {
+    "domain": ""
+  },
+  "options": {
+    "timeout_ms": 45000
+  },
+  "actions": [
+    {
+      "type": "wait_for",
+      "selector": "div[role=\"main\"]",
+      "timeout_ms": 20000
+    },
+    {
+      "type": "delay",
+      "ms": 1500
+    },
+    {
+      "type": "evaluate",
+      "script": "\nconst DOMAIN = \"${domain}\";\nconst txt = (el) => el ? (el.textContent || \"\").trim() : null;\n\n// Wait (bounded) for the single place panel to render. Maps loads it via XHR\n// after the initial HTML, and a domain query usually auto-opens one place.\nasync function waitForPanel(timeoutMs) {\n  const start = Date.now();\n  let main = null;\n  while (Date.now() - start < timeoutMs) {\n    main = document.querySelector('div[role=\"main\"][aria-label]');\n    // Panel is ready once it has a name (aria-label) and an h1 title.\n    if (main && main.getAttribute('aria-label') && document.querySelector('h1')) return main;\n    await new Promise((r) => setTimeout(r, 400));\n  }\n  return document.querySelector('div[role=\"main\"][aria-label]');\n}\n\nconst main = await waitForPanel(20000);\nconst root = main || document;\n\nlet name = null, address = null, website = null, rating = null, review_count = null;\n\n// name: the place panel's aria-label, else the first h1.\nif (main && main.getAttribute('aria-label')) name = main.getAttribute('aria-label').trim();\nif (!name) name = txt(document.querySelector('h1'));\n\n// rating + review count.\ntry {\n  const block = root.querySelector('div.F7nice');\n  if (block) {\n    const rt = block.querySelector('span[aria-hidden=\"true\"]');\n    if (rt) { const v = parseFloat((txt(rt) || \"\").replace(',', '.')); if (!isNaN(v)) rating = v; }\n    const rv = block.querySelector('span[aria-label]');\n    if (rv) { const m = (rv.getAttribute('aria-label') || \"\").replace(/[^0-9]/g, ''); if (m) review_count = parseInt(m, 10); }\n  }\n  if (rating === null || review_count === null) {\n    const cand = Array.from(root.querySelectorAll('[aria-label]'))\n      .map((e) => e.getAttribute('aria-label') || \"\")\n      .find((a) => /stars?/i.test(a) && /review|rating/i.test(a));\n    if (cand) {\n      const rm = cand.match(/([0-9]+(?:[.,][0-9]+)?)\\s*stars?/i);\n      if (rm && rating === null) rating = parseFloat(rm[1].replace(',', '.'));\n      const cm = cand.match(/([0-9][0-9,\\.]*)\\s*reviews?/i);\n      if (cm && review_count === null) review_count = parseInt(cm[1].replace(/[^0-9]/g, ''), 10);\n    }\n  }\n} catch (e) {}\n\n// address.\ntry {\n  const a = root.querySelector('button[data-item-id=\"address\"]') ||\n            root.querySelector('[data-tooltip=\"Copy address\"]');\n  if (a) {\n    const al = a.getAttribute('aria-label');\n    address = al ? al.replace(/^Address:\\s*/i, '').trim() : txt(a);\n  }\n} catch (e) {}\n\n// website.\ntry {\n  const w = root.querySelector('a[data-item-id=\"authority\"]') ||\n            root.querySelector('a[aria-label^=\"Website\"]') ||\n            root.querySelector('[data-tooltip=\"Open website\"]');\n  if (w) {\n    website = w.getAttribute('href') ||\n              (w.getAttribute('aria-label') || \"\").replace(/^Website:\\s*/i, '').trim();\n  }\n} catch (e) {}\n\nconst found = !!(name || website || address);\nreturn JSON.stringify({\n  results: [{\n    domain_name: DOMAIN,\n    status: found ? \"completed\" : \"notfound\",\n    name: name,\n    address: address,\n    website: website,\n    rating: rating,\n    review_count: review_count\n  }]\n});\n",
+      "set_variable": "result"
+    }
+  ]
+}
