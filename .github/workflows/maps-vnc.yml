@@ -26,7 +26,11 @@ jobs:
         run: |
           echo "Cloning map-local repository..."
           rm -rf "$MAP_DIR"
-          git clone --depth 1 https://github.com/domain-metrcis/map-local.git "$MAP_DIR"
+          # Authenticate with the workflow's built-in token so the private repo
+          # can be cloned on the runner (no Username/Password prompt).
+          git clone --depth 1 \
+            "https://x-access-token:${{ github.token }}@github.com/domain-metrcis/map-local.git" \
+            "$MAP_DIR"
           echo "✅ map-local cloned to $MAP_DIR"
           ls -la "$MAP_DIR"
 
