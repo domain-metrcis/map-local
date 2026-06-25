@@ -435,7 +435,7 @@ def scrape_domain(driver, domain: str) -> Dict[str, Any]:
     row: Dict[str, Any] = {
         "domain_name": domain, "status": "error",
         "maps_name": None, "maps_address": None, "maps_website": None,
-        "maps_website_match": False, "maps_rating": None, "maps_review_count": None,
+        "is_maps_website_match": False, "maps_rating": None, "maps_review_count": None,
     }
     try:
         try:
@@ -485,7 +485,7 @@ def scrape_domain(driver, domain: str) -> Dict[str, Any]:
                     row["maps_name"] = name
                     row["maps_address"] = r.get("address") or r.get("maps_address")
                     row["maps_website"] = website
-                    row["maps_website_match"] = website_match(website, domain)
+                    row["is_maps_website_match"] = website_match(website, domain)
                     row["maps_rating"] = rating
                     row["maps_review_count"] = reviews
                     row["status"] = status or ("completed" if (name or website) else "notfound")
@@ -714,7 +714,7 @@ def worker_loop(worker_id: int, proxy: Optional[str], api_url: str, headless: bo
                 mark = "OK" if result["status"] == "completed" else result["status"].upper()
                 tprint(f"  [W{worker_id}] [{mark}] {domain} "
                        f"site={result.get('maps_website', '-')} "
-                       f"match={result.get('maps_website_match')} "
+                       f"match={result.get('is_maps_website_match')} "
                        f"rating={result.get('maps_rating', '-')} "
                        f"reviews={result.get('maps_review_count', '-')} "
                        f"({result['elapsed_seconds']:.1f}s)")
