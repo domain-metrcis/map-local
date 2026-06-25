@@ -6,7 +6,7 @@ on:
       workers:
         description: 'Number of parallel browser instances'
         required: false
-        default: '5'
+        default: '1'
 
 env:
   DISPLAY: ":1"
