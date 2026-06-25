@@ -57,7 +57,7 @@ PROXIES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "proxies
 DEFAULT_API_URL = "https://b-domain.articleinnovator.com/domain-metrics-management-service/api/v1"
 
 ENDPOINT = "/maps/"
-MAPS_SEARCH_URL = "https://www.google.com/maps/search/"
+MAPS_SEARCH_URL = "https://www.google.com/maps?q="
 
 # Per-worker profile dirs created during this process — cleaned up on exit.
 _CREATED_PROFILES: List[str] = []
@@ -439,7 +439,7 @@ def scrape_domain(driver, domain: str) -> Dict[str, Any]:
     }
     try:
         try:
-            driver.get(f"{MAPS_SEARCH_URL}{quote(domain)}?hl=en")
+            driver.get(f"{MAPS_SEARCH_URL}{quote(domain)}")
         except Exception:
             pass
 
