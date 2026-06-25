@@ -197,72 +197,8 @@ def _install_signal_handlers() -> None:
 
 
 # ----------------------------------------------------------------------------
-# Driver build
+# Driver build (plain Selenium — no undetected_chromedriver needed for Maps)
 # ----------------------------------------------------------------------------
-
-_DRIVER_BUILD_LOCK_PATH = "/tmp/uc_driver_build_maps.lock"
-_driver_build_lock = threading.Lock()
-UC_CACHE_DIR = os.path.expanduser("~/.local/share/undetected_chromedriver")
-_UC_BIN_BACKUP = "/tmp/uc_chromedriver_maps.backup"
-
-
-def _acquire_driver_build_lock(timeout: float = 60.0) -> Optional[Any]:
-    try:
-        import fcntl
-    except ImportError:
-        return None
-    deadline = time.time() + timeout
-    fh = open(_DRIVER_BUILD_LOCK_PATH, "w")
-    while time.time() < deadline:
-        try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return fh
-        except BlockingIOError:
-            time.sleep(0.5)
-    fh.close()
-    return None
-
-
-def _release_driver_build_lock(fh: Optional[Any]) -> None:
-    if fh is None:
-        return
-    try:
-        import fcntl
-        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-    except Exception:
-        pass
-    try:
-        fh.close()
-    except Exception:
-        pass
-
-
-def _ensure_uc_binary_present() -> None:
-    try:
-        os.makedirs(UC_CACHE_DIR, exist_ok=True)
-    except Exception:
-        return
-    canonical = os.path.join(UC_CACHE_DIR, "undetected_chromedriver")
-    if os.path.exists(canonical):
-        return
-    if os.path.exists(_UC_BIN_BACKUP):
-        try:
-            shutil.copy2(_UC_BIN_BACKUP, canonical)
-            os.chmod(canonical, 0o755)
-        except Exception:
-            pass
-
-
-def _snapshot_uc_binary() -> None:
-    canonical = os.path.join(UC_CACHE_DIR, "undetected_chromedriver")
-    if not os.path.exists(canonical):
-        return
-    try:
-        if os.path.exists(_UC_BIN_BACKUP) and os.path.getsize(canonical) == os.path.getsize(_UC_BIN_BACKUP):
-            return
-        shutil.copy2(canonical, _UC_BIN_BACKUP)
-    except Exception:
-        pass
 
 
 def find_chrome_binary() -> Optional[str]:
@@ -315,32 +251,30 @@ def _free_port() -> int:
 
 def build_driver(worker_id: int, headless: bool, chrome_binary: Optional[str],
                  version_main: Optional[int], proxy: Optional[str] = None):
-    """Build a uc.Chrome driver. Returns (driver, profile_path)."""
-    import undetected_chromedriver as uc
+    """Build a plain Selenium Chrome driver. Returns (driver, profile_path)."""
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
 
-    file_lock = _acquire_driver_build_lock(timeout=120.0)
-    with _driver_build_lock:
-        try:
-            return _build_driver_locked(worker_id, headless, chrome_binary, version_main, proxy, uc)
-        finally:
-            _release_driver_build_lock(file_lock)
-
-
-def _build_driver_locked(worker_id: int, headless: bool, chrome_binary: Optional[str],
-                         version_main: Optional[int], proxy: Optional[str], uc):
-    opts = uc.ChromeOptions()
+    opts = Options()
     opts.page_load_strategy = "eager"
     opts.add_argument("--no-first-run")
     opts.add_argument("--no-default-browser-check")
     opts.add_argument("--disable-blink-features=AutomationControlled")
     opts.add_argument("--disable-infobars")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--no-sandbox")
     opts.add_argument("--lang=en-US")
     opts.add_argument("--window-size=1280,900")
     opts.add_argument(f"--remote-debugging-port={_free_port()}")
     opts.add_argument("--password-store=basic")
     opts.add_argument("--use-mock-keychain")
 
+    if headless:
+        opts.add_argument("--headless=new")
+
     profile = _create_profile(worker_id)
+    opts.add_argument(f"--user-data-dir={profile}")
     print(f"  [worker-{worker_id}] Profile: {profile}", flush=True)
 
     if chrome_binary:
@@ -374,12 +308,11 @@ def _build_driver_locked(worker_id: int, headless: bool, chrome_binary: Optional
         elif len(parts) == 2:
             opts.add_argument(f"--proxy-server=http://{proxy}")
 
-    _ensure_uc_binary_present()
-    driver = uc.Chrome(options=opts, headless=headless, use_subprocess=True,
-                       version_main=version_main, user_data_dir=profile)
+    # Use Selenium Manager (built-in since Selenium 4.6) to auto-resolve chromedriver
+    service = Service()
+    driver = webdriver.Chrome(options=opts, service=service)
     driver.set_page_load_timeout(30)
     driver.set_script_timeout(45)
-    _snapshot_uc_binary()
     return driver, profile
 
 
@@ -812,7 +745,7 @@ def main():
             futures.append(executor.submit(
                 worker_loop, i, proxy, args.api_url, args.headless, chrome_bin, version_main
             ))
-            time.sleep(10)
+            time.sleep(2)  # brief stagger to avoid port conflicts
         try:
             for f in futures:
                 f.result()
